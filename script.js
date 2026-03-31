@@ -340,9 +340,8 @@ function joinGame() {
 
 function startGame() {
   if (state.players.length === 0) {
-    const joinAnyway = confirm('No players have joined yet. Start solo play?');
-    if (!joinAnyway) return;
-    state.players.push({ name: 'Player 1', score: 0, answers: [] });
+    alert('Add at least one player before starting the quiz. The host monitors the game, but does not play.');
+    return;
   }
 
   state.gameStarted = true;

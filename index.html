@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz Blitz</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div>
+        <h1>Quiz Blitz</h1>
+        <p>Fast, colorful, Kahoot-style quiz gameplay for schools and teams.</p>
+      </div>
+      <div class="header-action">Made for fun quiz battles</div>
+    </header>
+
+    <main>
+      <section id="welcome" class="screen active">
+        <div class="hero-card">
+          <h2>Start a game or build a quiz in seconds.</h2>
+          <p>Host a live quiz, invite players, and show scores instantly.</p>
+          <div class="button-row">
+            <button id="hostGameBtn" class="btn btn-primary">Host a Quiz</button>
+            <button id="playGameBtn" class="btn btn-secondary">Play a Quiz</button>
+          </div>
+        </div>
+        <div class="preview-grid">
+          <div class="preview-card">
+            <h3>Quiz Editor</h3>
+            <p>Add questions, answers, and correct choices just like a real kahoot.</p>
+          </div>
+          <div class="preview-card">
+            <h3>Live Gameplay</h3>
+            <p>Show one question at a time with countdown and answer tiles.</p>
+          </div>
+          <div class="preview-card">
+            <h3>Scoreboard</h3>
+            <p>Track points for every player and display winners clearly.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="editor" class="screen">
+        <div class="screen-header">
+          <button class="back-btn" data-target="welcome">← Back</button>
+          <div>
+            <h2>Build your quiz</h2>
+            <p>Enter questions, optional image URLs, and answer choices.</p>
+          </div>
+        </div>
+
+        <div class="editor-layout">
+          <div class="editor-panel">
+            <label>Quiz title</label>
+            <input id="quizTitle" type="text" placeholder="Name this quiz" value="General knowledge challenge" />
+
+            <div id="questionList"></div>
+
+            <button id="addQuestionBtn" class="btn btn-primary btn-block">Add Question</button>
+            <button id="startHostBtn" class="btn btn-secondary btn-block">Start Hosting</button>
+          </div>
+
+          <div class="editor-preview">
+            <h3>Preview</h3>
+            <div class="question-preview" id="previewCard"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="join" class="screen">
+        <div class="screen-header">
+          <button class="back-btn" data-target="welcome">← Back</button>
+          <div>
+            <h2>Join the quiz</h2>
+            <p>Enter your name and the game PIN from the host.</p>
+          </div>
+        </div>
+
+        <div class="card card-center">
+          <label>Your name</label>
+          <input id="playerNameInput" type="text" placeholder="Type your name" />
+          <label>Game PIN</label>
+          <input id="gamePinInput" type="text" placeholder="1234" maxlength="4" />
+          <button id="joinGameBtn" class="btn btn-primary btn-block">Join Game</button>
+        </div>
+      </section>
+
+      <section id="lobby" class="screen">
+        <div class="screen-header">
+          <button class="back-btn" data-target="welcome">← Back</button>
+          <div>
+            <h2>Lobby</h2>
+            <p>Share PIN with players and start when everyone is ready.</p>
+          </div>
+        </div>
+
+        <div class="card card-center lobby-card">
+          <div class="lobby-pin">Game PIN: <strong id="gamePinDisplay">0000</strong></div>
+          <div class="players-list">
+            <h4>Players</h4>
+            <ul id="playerList"></ul>
+          </div>
+          <button id="beginGameBtn" class="btn btn-primary btn-block">Begin Quiz</button>
+        </div>
+      </section>
+
+      <section id="game" class="screen">
+        <div class="screen-header">
+          <div>
+            <h2 id="gameTitle"></h2>
+            <p id="progressText"></p>
+          </div>
+          <div class="score-summary">Next up: <span id="nextQuestionText">0</span></div>
+        </div>
+
+        <div class="card question-card">
+          <div class="question-content">
+            <p id="questionText"></p>
+          </div>
+          <div id="answersGrid" class="answers-grid"></div>
+          <div class="timer-row">
+            <div class="timer-label">Time left</div>
+            <div class="timer-bar"><div id="timerFill"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="scoreboard" class="screen">
+        <div class="screen-header">
+          <button class="back-btn" data-target="welcome">← Back</button>
+          <div>
+            <h2>Final Scoreboard</h2>
+            <p>See who won and review your game results.</p>
+          </div>
+        </div>
+
+        <div class="score-panel card">
+          <table>
+            <thead>
+              <tr><th>Rank</th><th>Player</th><th>Score</th></tr>
+            </thead>
+            <tbody id="scoreRows"></tbody>
+          </table>
+          <button id="playAgainBtn" class="btn btn-primary btn-block">Play Again</button>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>

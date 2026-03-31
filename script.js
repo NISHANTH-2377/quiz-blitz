@@ -11,6 +11,19 @@ const firebaseConfig = {
   appId: "YOUR_APP_ID",
 };
 
+function isFirebaseConfigValid() {
+  return (
+    firebaseConfig.apiKey && !firebaseConfig.apiKey.includes('YOUR_') &&
+    firebaseConfig.authDomain && !firebaseConfig.authDomain.includes('YOUR_') &&
+    firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes('YOUR_') &&
+    firebaseConfig.projectId && !firebaseConfig.projectId.includes('YOUR_')
+  );
+}
+
+if (!isFirebaseConfigValid()) {
+  console.warn('Firebase config is not configured. Replace placeholders in script.js with your Firebase project settings.');
+}
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
@@ -302,6 +315,10 @@ function listenPlayers() {
 }
 
 function createLobby() {
+  if (!isFirebaseConfigValid()) {
+    alert('Firebase is not configured. Update the firebaseConfig object in script.js with your Firebase project details.');
+    return;
+  }
   updateQuizFromEditor();
   if (!state.quiz || !state.quiz.questions.length) {
     alert('Add at least one question before hosting.');
@@ -506,3 +523,8 @@ window.addEventListener('input', (event) => {
 renderQuestionCards();
 renderPreview();
 restoreSession();
+if (!isFirebaseConfigValid()) {
+  if (startHostBtn) startHostBtn.disabled = true;
+  if (joinGameBtn) joinGameBtn.disabled = true;
+  console.warn('Firebase config invalid or placeholder values found. Hosting and joining are disabled until configuration is updated.');
+}

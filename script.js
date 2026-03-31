@@ -29,6 +29,9 @@ const answersGrid = document.getElementById('answersGrid');
 const timerFill = document.getElementById('timerFill');
 const scoreRows = document.getElementById('scoreRows');
 
+const SESSION_ROLE_KEY = 'quizBlitzRole';
+const SESSION_NAME_KEY = 'quizBlitzMyPlayerName';
+
 let state = {
   quiz: null,
   players: [],
@@ -36,6 +39,9 @@ let state = {
   currentQuestion: 0,
   countdown: 10,
   timerId: null,
+  gameStarted: false,
+  myPlayerName: null,
+  role: null, // 'host' or 'player'
 };
 
 const sampleQuiz = {
@@ -82,6 +88,7 @@ function loadState() {
     if (Array.isArray(parsed.players)) state.players = parsed.players;
     if (typeof parsed.gamePin === 'string') state.gamePin = parsed.gamePin;
     if (typeof parsed.currentQuestion === 'number') state.currentQuestion = parsed.currentQuestion;
+    if (typeof parsed.gameStarted === 'boolean') state.gameStarted = parsed.gameStarted;
     if (state.gamePin && gamePinInput) {
       gamePinInput.value = state.gamePin;
     }
@@ -98,12 +105,47 @@ function loadState() {
 function saveState() {
   localStorage.setItem(
     'quizBlitzState',
-    JSON.stringify({ quiz: state.quiz, players: state.players, gamePin: state.gamePin, currentQuestion: state.currentQuestion })
+    JSON.stringify({
+      quiz: state.quiz,
+      players: state.players,
+      gamePin: state.gamePin,
+      currentQuestion: state.currentQuestion,
+      gameStarted: state.gameStarted,
+    })
   );
 }
 
 function clearSavedState() {
   localStorage.removeItem('quizBlitzState');
+}
+
+function restoreSessionRole() {
+  const savedRole = sessionStorage.getItem(SESSION_ROLE_KEY);
+  const savedName = sessionStorage.getItem(SESSION_NAME_KEY);
+  if (savedRole) {
+    state.role = savedRole;
+  }
+  if (savedName) {
+    state.myPlayerName = savedName;
+  }
+}
+
+function saveSessionRole(role, playerName) {
+  if (role) {
+    sessionStorage.setItem(SESSION_ROLE_KEY, role);
+    state.role = role;
+  }
+  if (playerName) {
+    sessionStorage.setItem(SESSION_NAME_KEY, playerName);
+    state.myPlayerName = playerName;
+  }
+}
+
+function clearSessionRole() {
+  sessionStorage.removeItem(SESSION_ROLE_KEY);
+  sessionStorage.removeItem(SESSION_NAME_KEY);
+  state.role = null;
+  state.myPlayerName = null;
 }
 
 function buildQuizEditor(initialQuiz) {
@@ -209,10 +251,14 @@ function createLobby() {
     alert('Add at least one question before hosting.');
     return;
   }
+  state.role = 'host';
+  saveSessionRole('host', null);
   state.gamePin = formatPin();
   state.players = [];
+  state.gameStarted = false;
   gamePinDisplay.textContent = state.gamePin;
   renderPlayers();
+  updateLobbyRoleUI();
   saveState();
   showScreen('lobby');
 }
@@ -230,8 +276,27 @@ function renderPlayers() {
   });
 }
 
+function updateLobbyRoleUI() {
+  if (state.role === 'player') {
+    beginGameBtn.disabled = true;
+    beginGameBtn.textContent = 'Waiting for host';
+  } else {
+    beginGameBtn.disabled = false;
+    beginGameBtn.textContent = 'Begin Quiz';
+  }
+}
+
+function maybeEnterGameIfStarted() {
+  if (state.role !== 'player' || !state.myPlayerName || !state.gameStarted) return;
+  const joinedPlayer = state.players.find((player) => player.name === state.myPlayerName);
+  if (!joinedPlayer) return;
+  showScreen('game');
+  renderQuestion();
+}
+
 function joinGame() {
   loadState();
+  restoreSessionRole();
 
   const name = playerNameInput.value.trim();
   const pin = gamePinInput.value.trim();
@@ -248,10 +313,21 @@ function joinGame() {
     return;
   }
   state.players.push({ name, score: 0, answers: [] });
+  saveSessionRole('player', name);
+  state.role = 'player';
   saveState();
   playerNameInput.value = '';
   renderPlayers();
-  alert(`${name} joined the quiz!`);
+  updateLobbyRoleUI();
+
+  if (state.gameStarted) {
+    showScreen('game');
+    renderQuestion();
+    alert(`${name} joined the quiz and is entering the game.`);
+  } else {
+    showScreen('lobby');
+    alert(`${name} joined the quiz! Waiting for the host to begin.`);
+  }
 }
 
 function startGame() {
@@ -261,6 +337,7 @@ function startGame() {
     state.players.push({ name: 'Player 1', score: 0, answers: [] });
   }
 
+  state.gameStarted = true;
   state.currentQuestion = 0;
   state.quiz = state.quiz || sampleQuiz;
   state.quiz.title = quizTitleInput.value.trim() || state.quiz.title;
@@ -268,6 +345,7 @@ function startGame() {
     player.score = 0;
     player.answers = [];
   });
+  saveState();
   showScreen('game');
   renderQuestion();
 }
@@ -334,7 +412,7 @@ function settleAnswer(choiceIndex) {
   });
 
   const scoreDelta = isCorrect ? 100 + state.countdown * 10 : 0;
-  const player = state.players[0];
+  const player = state.players.find((p) => p.name === state.myPlayerName) || state.players[0];
   player.score += scoreDelta;
   player.answers.push({ question: question.question, correct: isCorrect, chosen: choiceIndex });
 
@@ -365,24 +443,39 @@ function showScoreboard() {
 }
 
 function resetToWelcome() {
-  state = { quiz: sampleQuiz, players: [], gamePin: '', currentQuestion: 0, countdown: 10, timerId: null };
+  state = {
+    quiz: sampleQuiz,
+    players: [],
+    gamePin: '',
+    currentQuestion: 0,
+    countdown: 10,
+    timerId: null,
+    gameStarted: false,
+    myPlayerName: null,
+    role: null,
+  };
   clearSavedState();
+  clearSessionRole();
   buildQuizEditor(sampleQuiz);
   showScreen('welcome');
 }
 
 hostGameBtn.addEventListener('click', () => {
+  state.role = 'host';
+  saveSessionRole('host', null);
   buildQuizEditor(sampleQuiz);
   showScreen('editor');
 });
 
 playGameBtn.addEventListener('click', () => {
-  state.quiz = sampleQuiz;
-  quizTitleInput.value = sampleQuiz.title;
-  state.gamePin = formatPin();
-  state.players = [];
-  saveState();
-  gamePinInput.value = state.gamePin;
+  state.role = 'player';
+  saveSessionRole('player', null);
+  loadState();
+  if (state.gamePin && gamePinInput) {
+    gamePinInput.value = state.gamePin;
+  }
+  renderPlayers();
+  updateLobbyRoleUI();
   showScreen('join');
 });
 
@@ -427,16 +520,19 @@ window.addEventListener('input', (event) => {
 window.addEventListener('storage', (event) => {
   if (event.key !== 'quizBlitzState') return;
   loadState();
+  restoreSessionRole();
   if (gamePinInput) gamePinInput.value = state.gamePin || '';
   if (gamePinDisplay) gamePinDisplay.textContent = state.gamePin || '----';
   renderPlayers();
+  updateLobbyRoleUI();
+  maybeEnterGameIfStarted();
 });
 
+restoreSessionRole();
 loadState();
-if (state.gamePin && gamePinInput) {
-  gamePinInput.value = state.gamePin;
-}
-if (state.gamePin && gamePinDisplay) {
-  gamePinDisplay.textContent = state.gamePin;
-}
+if (gamePinInput) gamePinInput.value = state.gamePin || '';
+if (gamePinDisplay) gamePinDisplay.textContent = state.gamePin || '----';
+renderPlayers();
+updateLobbyRoleUI();
+maybeEnterGameIfStarted();
 buildQuizEditor(state.quiz || sampleQuiz);

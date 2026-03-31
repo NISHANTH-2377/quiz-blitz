@@ -322,14 +322,19 @@ function createLobby() {
     started: false,
     ended: false,
     createdAt: Date.now(),
-  }).then(() => {
-    listenGame();
-    listenPlayers();
-    gamePinDisplay.textContent = state.pin;
-    renderPlayers([]);
-    updateLobbyRoleUI();
-    showScreen('lobby');
-  });
+  })
+    .then(() => {
+      listenGame();
+      listenPlayers();
+      gamePinDisplay.textContent = state.pin;
+      renderPlayers([]);
+      updateLobbyRoleUI();
+      showScreen('lobby');
+    })
+    .catch((error) => {
+      console.error('Unable to create lobby', error);
+      alert('Unable to start hosting. Check your Firebase configuration and database rules.');
+    });
 }
 
 function joinGame() {
@@ -362,15 +367,20 @@ function joinGame() {
       name,
       score: 0,
       answered: false,
-    }).then(() => {
-      onDisconnect(newPlayerRef).remove();
-      listenGame();
-      listenPlayers();
-      gamePinDisplay.textContent = pin;
-      updateLobbyRoleUI();
-      showScreen('lobby');
-      alert(`Joined as ${name}. Waiting for the host to begin.`);
-    });
+    })
+      .then(() => {
+        onDisconnect(newPlayerRef).remove();
+        listenGame();
+        listenPlayers();
+        gamePinDisplay.textContent = pin;
+        updateLobbyRoleUI();
+        showScreen('lobby');
+        alert(`Joined as ${name}. Waiting for the host to begin.`);
+      })
+      .catch((error) => {
+        console.error('Unable to join game', error);
+        alert('Unable to join game. Check your Firebase configuration and database rules.');
+      });
   });
 }
 

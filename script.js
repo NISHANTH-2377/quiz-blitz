@@ -520,11 +520,17 @@ window.addEventListener('input', (event) => {
   updateQuizFromEditor();
   renderPreview();
 });
+const configWarning = document.getElementById('configWarning');
+
 renderQuestionCards();
 renderPreview();
 restoreSession();
 if (!isFirebaseConfigValid()) {
   if (startHostBtn) startHostBtn.disabled = true;
   if (joinGameBtn) joinGameBtn.disabled = true;
+  if (configWarning) {
+    configWarning.style.display = 'block';
+    configWarning.textContent = 'Firebase configuration is missing. Update the firebaseConfig values in script.js before hosting.';
+  }
   console.warn('Firebase config invalid or placeholder values found. Hosting and joining are disabled until configuration is updated.');
 }

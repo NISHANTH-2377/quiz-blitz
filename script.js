@@ -75,15 +75,17 @@ function formatPin() {
 
 function loadState() {
   const saved = localStorage.getItem('quizBlitzState');
-  if (!saved) return;
+  if (!saved) return null;
   try {
     const parsed = JSON.parse(saved);
     if (parsed.quiz) state.quiz = parsed.quiz;
     if (Array.isArray(parsed.players)) state.players = parsed.players;
     if (typeof parsed.gamePin === 'string') state.gamePin = parsed.gamePin;
     if (typeof parsed.currentQuestion === 'number') state.currentQuestion = parsed.currentQuestion;
+    return parsed;
   } catch (error) {
     console.warn('Unable to parse saved quiz state', error);
+    return null;
   }
 }
 
@@ -223,9 +225,7 @@ function renderPlayers() {
 }
 
 function joinGame() {
-  if (!state.gamePin) {
-    loadState();
-  }
+  loadState();
 
   const name = playerNameInput.value.trim();
   const pin = gamePinInput.value.trim();
@@ -416,6 +416,14 @@ window.addEventListener('input', (event) => {
       if (option) option.textContent = target.value || `Choice ${choiceIndex + 1}`;
     }
   }
+});
+
+window.addEventListener('storage', (event) => {
+  if (event.key !== 'quizBlitzState') return;
+  loadState();
+  if (gamePinInput) gamePinInput.value = state.gamePin || '';
+  if (gamePinDisplay) gamePinDisplay.textContent = state.gamePin || '----';
+  renderPlayers();
 });
 
 loadState();

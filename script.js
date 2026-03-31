@@ -82,6 +82,12 @@ function loadState() {
     if (Array.isArray(parsed.players)) state.players = parsed.players;
     if (typeof parsed.gamePin === 'string') state.gamePin = parsed.gamePin;
     if (typeof parsed.currentQuestion === 'number') state.currentQuestion = parsed.currentQuestion;
+    if (state.gamePin && gamePinInput) {
+      gamePinInput.value = state.gamePin;
+    }
+    if (state.gamePin && gamePinDisplay) {
+      gamePinDisplay.textContent = state.gamePin;
+    }
     return parsed;
   } catch (error) {
     console.warn('Unable to parse saved quiz state', error);
@@ -427,4 +433,10 @@ window.addEventListener('storage', (event) => {
 });
 
 loadState();
+if (state.gamePin && gamePinInput) {
+  gamePinInput.value = state.gamePin;
+}
+if (state.gamePin && gamePinDisplay) {
+  gamePinDisplay.textContent = state.gamePin;
+}
 buildQuizEditor(state.quiz || sampleQuiz);

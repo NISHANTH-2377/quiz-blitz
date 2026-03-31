@@ -287,11 +287,19 @@ function updateLobbyRoleUI() {
 }
 
 function maybeEnterGameIfStarted() {
-  if (state.role !== 'player' || !state.myPlayerName || !state.gameStarted) return;
-  const joinedPlayer = state.players.find((player) => player.name === state.myPlayerName);
-  if (!joinedPlayer) return;
-  showScreen('game');
-  renderQuestion();
+  if (!state.gameStarted) return;
+  if (state.role === 'player') {
+    const joinedPlayer = state.players.find((player) => player.name === state.myPlayerName);
+    if (!joinedPlayer) return;
+    showScreen('game');
+    renderQuestion();
+    return;
+  }
+
+  if (state.role === 'host') {
+    showScreen('game');
+    renderQuestion();
+  }
 }
 
 function joinGame() {
@@ -366,9 +374,24 @@ function renderQuestion() {
     button.className = 'answer-button';
     button.textContent = choice;
     button.dataset.index = index;
-    button.addEventListener('click', () => chooseAnswer(index));
+    if (state.role === 'host') {
+      button.disabled = true;
+      button.style.opacity = '0.7';
+      button.style.cursor = 'not-allowed';
+    } else {
+      button.addEventListener('click', () => chooseAnswer(index));
+    }
     answersGrid.appendChild(button);
   });
+
+  if (state.role === 'host') {
+    const note = document.createElement('div');
+    note.style.marginTop = '18px';
+    note.style.color = '#cbd5e1';
+    note.style.fontSize = '0.95rem';
+    note.textContent = 'Host monitor mode — answer selection is disabled.';
+    answersGrid.appendChild(note);
+  }
 
   state.countdown = 12;
   timerFill.style.width = '100%';

@@ -1,19 +1,29 @@
-const screens = document.querySelectorAll('.screen');
-const welcomeScreen = document.getElementById('welcome');
-const editorScreen = document.getElementById('editor');
-const joinScreen = document.getElementById('join');
-const lobbyScreen = document.getElementById('lobby');
-const gameScreen = document.getElementById('game');
-const scoreboardScreen = document.getElementById('scoreboard');
+﻿import { initializeApp } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js";
+import { getDatabase, ref, set, push, onValue, update, remove, onDisconnect, get } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  databaseURL: "https://YOUR_PROJECT.firebaseio.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId: "YOUR_APP_ID",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const STORAGE_KEY = 'quizBlitzSession';
+const screens = document.querySelectorAll('.screen');
 const hostGameBtn = document.getElementById('hostGameBtn');
 const playGameBtn = document.getElementById('playGameBtn');
 const addQuestionBtn = document.getElementById('addQuestionBtn');
 const startHostBtn = document.getElementById('startHostBtn');
 const joinGameBtn = document.getElementById('joinGameBtn');
 const beginGameBtn = document.getElementById('beginGameBtn');
+const nextQuestionBtn = document.getElementById('nextQuestionBtn');
 const playAgainBtn = document.getElementById('playAgainBtn');
-
 const quizTitleInput = document.getElementById('quizTitle');
 const questionList = document.getElementById('questionList');
 const previewCard = document.getElementById('previewCard');
@@ -29,138 +39,81 @@ const answersGrid = document.getElementById('answersGrid');
 const timerFill = document.getElementById('timerFill');
 const scoreRows = document.getElementById('scoreRows');
 
-const SESSION_ROLE_KEY = 'quizBlitzRole';
-const SESSION_NAME_KEY = 'quizBlitzMyPlayerName';
-
 let state = {
+  role: null,
+  name: null,
+  pin: null,
+  playerId: null,
   quiz: null,
-  players: [],
-  gamePin: '',
   currentQuestion: 0,
-  countdown: 10,
-  timerId: null,
   gameStarted: false,
-  myPlayerName: null,
-  role: null, // 'host' or 'player'
+  ended: false,
+  players: [],
+  answered: false,
 };
 
-const sampleQuiz = {
-  title: 'Quiz Blitz Sample',
-  questions: [
-    {
-      question: 'Which planet is known as the Red Planet?',
-      choices: ['Mars', 'Venus', 'Jupiter', 'Mercury'],
-      answer: 0,
-    },
-    {
-      question: 'What is the capital of Japan?',
-      choices: ['Beijing', 'Seoul', 'Tokyo', 'Bangkok'],
-      answer: 2,
-    },
-    {
-      question: 'What is the main ingredient in guacamole?',
-      choices: ['Potato', 'Avocado', 'Mango', 'Tomato'],
-      answer: 1,
-    },
-    {
-      question: 'How many continents are there?',
-      choices: ['5', '6', '7', '8'],
-      answer: 2,
-    },
-  ],
-};
+let gameListener = null;
+let playersListener = null;
 
 function showScreen(id) {
   screens.forEach((screen) => screen.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
 
-function formatPin() {
+function saveSession() {
+  const session = {
+    role: state.role,
+    name: state.name,
+    pin: state.pin,
+    playerId: state.playerId,
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+}
+
+function loadSession() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  if (!saved) return;
+  try {
+    const session = JSON.parse(saved);
+    state.role = session.role;
+    state.name = session.name;
+    state.pin = session.pin;
+    state.playerId = session.playerId;
+  } catch (error) {
+    console.warn('Unable to load saved session', error);
+  }
+}
+
+function clearSession() {
+  localStorage.removeItem(STORAGE_KEY);
+  state = {
+    role: null,
+    name: null,
+    pin: null,
+    playerId: null,
+    quiz: null,
+    currentQuestion: 0,
+    gameStarted: false,
+    ended: false,
+    players: [],
+    answered: false,
+  };
+}
+
+function createPin() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
-function loadState() {
-  const saved = localStorage.getItem('quizBlitzState');
-  if (!saved) return null;
-  try {
-    const parsed = JSON.parse(saved);
-    if (parsed.quiz) state.quiz = parsed.quiz;
-    if (Array.isArray(parsed.players)) state.players = parsed.players;
-    if (typeof parsed.gamePin === 'string') state.gamePin = parsed.gamePin;
-    if (typeof parsed.currentQuestion === 'number') state.currentQuestion = parsed.currentQuestion;
-    if (typeof parsed.gameStarted === 'boolean') state.gameStarted = parsed.gameStarted;
-    if (state.gamePin && gamePinInput) {
-      gamePinInput.value = state.gamePin;
-    }
-    if (state.gamePin && gamePinDisplay) {
-      gamePinDisplay.textContent = state.gamePin;
-    }
-    return parsed;
-  } catch (error) {
-    console.warn('Unable to parse saved quiz state', error);
-    return null;
-  }
-}
-
-function saveState() {
-  localStorage.setItem(
-    'quizBlitzState',
-    JSON.stringify({
-      quiz: state.quiz,
-      players: state.players,
-      gamePin: state.gamePin,
-      currentQuestion: state.currentQuestion,
-      gameStarted: state.gameStarted,
-    })
-  );
-}
-
-function clearSavedState() {
-  localStorage.removeItem('quizBlitzState');
-}
-
-function restoreSessionRole() {
-  const savedRole = sessionStorage.getItem(SESSION_ROLE_KEY);
-  const savedName = sessionStorage.getItem(SESSION_NAME_KEY);
-  if (savedRole) {
-    state.role = savedRole;
-  }
-  if (savedName) {
-    state.myPlayerName = savedName;
-  }
-}
-
-function saveSessionRole(role, playerName) {
-  if (role) {
-    sessionStorage.setItem(SESSION_ROLE_KEY, role);
-    state.role = role;
-  }
-  if (playerName) {
-    sessionStorage.setItem(SESSION_NAME_KEY, playerName);
-    state.myPlayerName = playerName;
-  }
-}
-
-function clearSessionRole() {
-  sessionStorage.removeItem(SESSION_ROLE_KEY);
-  sessionStorage.removeItem(SESSION_NAME_KEY);
-  state.role = null;
-  state.myPlayerName = null;
-}
-
-function buildQuizEditor(initialQuiz) {
-  const quiz = initialQuiz ? JSON.parse(JSON.stringify(initialQuiz)) : {
-    title: 'New Quiz',
-    questions: [],
-  };
-  state.quiz = quiz;
-  quizTitleInput.value = quiz.title;
-  renderQuestionCards();
-  renderPreview();
+function validatePin(pin) {
+  return /^\d{4}$/.test(pin);
 }
 
 function renderQuestionCards() {
   questionList.innerHTML = '';
+  if (!state.quiz || state.quiz.questions.length === 0) {
+    questionList.innerHTML = '<p class="label-text">No questions yet. Add one to start the game.</p>';
+    return;
+  }
 
   state.quiz.questions.forEach((item, idx) => {
     const card = document.createElement('div');
@@ -174,39 +127,44 @@ function renderQuestionCards() {
       <textarea data-role="question" data-index="${idx}">${item.question}</textarea>
       <label>Correct answer</label>
       <select data-role="answer" data-index="${idx}">
-        ${item.choices.map((choice, choiceIndex) => `
+        ${item.choices
+          .map(
+            (choice, choiceIndex) => `
           <option value="${choiceIndex}" ${choiceIndex === item.answer ? 'selected' : ''}>${choice}</option>
-        `).join('')}
+        `
+          )
+          .join('')}
       </select>
       <div style="display:grid;gap:10px;margin-top:14px;">
-        ${item.choices.map((choice, choiceIndex) => `
+        ${item.choices
+          .map(
+            (choice, choiceIndex) => `
           <div>
             <label>Choice ${choiceIndex + 1}</label>
             <input data-role="choice" data-index="${idx}" data-choice="${choiceIndex}" value="${choice}" />
           </div>
-        `).join('')}
+        `
+          )
+          .join('')}
       </div>
     `;
     questionList.appendChild(card);
   });
-
-  if (state.quiz.questions.length === 0) {
-    questionList.innerHTML = '<p class="label-text">No questions yet. Add one to start the game.</p>';
-  }
 }
 
-function addQuestion() {
-  state.quiz.questions.push({
-    question: 'Type your question here',
-    choices: ['Option A', 'Option B', 'Option C', 'Option D'],
-    answer: 0,
-  });
-  renderQuestionCards();
-  renderPreview();
+function renderPreview() {
+  const current = state.quiz && state.quiz.questions.length ? state.quiz.questions[0] : { question: 'Preview question will show here', choices: ['Option A', 'Option B', 'Option C', 'Option D'] };
+  previewCard.innerHTML = `
+    <div style="font-size:1.1rem;font-weight:700;">${current.question}</div>
+    <div class="answers-grid">
+      ${current.choices.map((choice) => `<div class="answer-button" style="cursor:default;">${choice}</div>`).join('')}
+    </div>
+  `;
 }
 
 function updateQuizFromEditor() {
   const title = quizTitleInput.value.trim();
+  if (!state.quiz) state.quiz = { title: title || 'Untitled Quiz', questions: [] };
   state.quiz.title = title || 'Untitled Quiz';
 
   questionList.querySelectorAll('[data-role="question"]').forEach((textarea) => {
@@ -226,159 +184,43 @@ function updateQuizFromEditor() {
   });
 }
 
-function removeQuestion(index) {
-  state.quiz.questions.splice(index, 1);
-  renderQuestionCards();
-  renderPreview();
-}
-
-function renderPreview() {
-  const current = state.quiz.questions[0] || {
-    question: 'Preview question will show here',
-    choices: ['Option A', 'Option B', 'Option C', 'Option D'],
-  };
-  previewCard.innerHTML = `
-    <div style="font-size:1.1rem;font-weight:700;">${current.question}</div>
-    <div class="answers-grid">
-      ${current.choices.map((choice) => `<div class="answer-button" style="cursor:default;">${choice}</div>`).join('')}
-    </div>
-  `;
-}
-
-function createLobby() {
-  updateQuizFromEditor();
-  if (state.quiz.questions.length === 0) {
-    alert('Add at least one question before hosting.');
-    return;
-  }
-  state.role = 'host';
-  saveSessionRole('host', null);
-  state.gamePin = formatPin();
-  state.players = [];
-  state.gameStarted = false;
-  gamePinDisplay.textContent = state.gamePin;
-  renderPlayers();
-  updateLobbyRoleUI();
-  saveState();
-  showScreen('lobby');
-}
-
-function renderPlayers() {
+function renderPlayers(players) {
   playerList.innerHTML = '';
-  if (state.players.length === 0) {
+  if (!players || players.length === 0) {
     playerList.innerHTML = '<li class="label-text">No players joined yet. Use the PIN to invite them.</li>';
     return;
   }
-  state.players.forEach((player) => {
+  players.forEach((player) => {
     const li = document.createElement('li');
-    li.textContent = `${player.name} — ${player.score} pts`;
+    li.textContent = `${player.name} — ${player.score} pts${player.answered ? ' (answered)' : ''}`;
     playerList.appendChild(li);
   });
 }
 
-function updateLobbyRoleUI() {
-  if (state.role === 'player') {
-    beginGameBtn.disabled = true;
-    beginGameBtn.textContent = 'Waiting for host';
-  } else {
-    beginGameBtn.disabled = false;
-    beginGameBtn.textContent = 'Begin Quiz';
-  }
-}
-
-function maybeEnterGameIfStarted() {
-  if (!state.gameStarted) return;
-  if (state.role === 'player') {
-    const joinedPlayer = state.players.find((player) => player.name === state.myPlayerName);
-    if (!joinedPlayer) return;
-    showScreen('game');
-    renderQuestion();
-    return;
-  }
-
-  if (state.role === 'host') {
-    showScreen('game');
-    renderQuestion();
-  }
-}
-
-function joinGame() {
-  loadState();
-  restoreSessionRole();
-
-  const name = playerNameInput.value.trim();
-  const pin = gamePinInput.value.trim();
-  if (!name || pin.length !== 4) {
-    alert('Enter a valid name and 4-digit PIN.');
-    return;
-  }
-  if (!state.gamePin || pin !== state.gamePin) {
-    alert('Game PIN is not active or does not match.');
-    return;
-  }
-  if (state.players.find((player) => player.name.toLowerCase() === name.toLowerCase())) {
-    alert('A player with that name already joined.');
-    return;
-  }
-  state.players.push({ name, score: 0, answers: [] });
-  saveSessionRole('player', name);
-  state.role = 'player';
-  saveState();
-  playerNameInput.value = '';
-  renderPlayers();
-  updateLobbyRoleUI();
-
-  if (state.gameStarted) {
-    showScreen('game');
-    renderQuestion();
-    alert(`${name} joined the quiz and is entering the game.`);
-  } else {
-    showScreen('lobby');
-    alert(`${name} joined the quiz! Waiting for the host to begin.`);
-  }
-}
-
-function startGame() {
-  if (state.players.length === 0) {
-    alert('Add at least one player before starting the quiz. The host monitors the game, but does not play.');
-    return;
-  }
-
-  state.gameStarted = true;
-  state.currentQuestion = 0;
-  state.quiz = state.quiz || sampleQuiz;
-  state.quiz.title = quizTitleInput.value.trim() || state.quiz.title;
-  state.players.forEach((player) => {
-    player.score = 0;
-    player.answers = [];
-  });
-  saveState();
-  showScreen('game');
-  renderQuestion();
-}
-
 function renderQuestion() {
-  const quiz = state.quiz;
-  const questionIndex = state.currentQuestion;
-  const question = quiz.questions[questionIndex];
-
-  gameTitle.textContent = quiz.title;
-  progressText.textContent = `Question ${questionIndex + 1} of ${quiz.questions.length}`;
-  nextQuestionText.textContent = questionIndex + 1;
+  const question = state.quiz.questions[state.currentQuestion];
+  const total = state.quiz.questions.length;
+  gameTitle.textContent = state.quiz.title;
+  progressText.textContent = `Question ${state.currentQuestion + 1} of ${total}`;
+  nextQuestionText.textContent = state.currentQuestion + 1;
   questionText.textContent = question.question;
   answersGrid.innerHTML = '';
 
-  question.choices.forEach((choice, index) => {
+  question.choices.forEach((choice, answerIndex) => {
     const button = document.createElement('button');
     button.className = 'answer-button';
     button.textContent = choice;
-    button.dataset.index = index;
+    button.dataset.index = answerIndex;
     if (state.role === 'host') {
       button.disabled = true;
       button.style.opacity = '0.7';
       button.style.cursor = 'not-allowed';
     } else {
-      button.addEventListener('click', () => chooseAnswer(index));
+      button.addEventListener('click', () => {
+        if (state.answered) return;
+        state.answered = true;
+        submitAnswer(answerIndex);
+      });
     }
     answersGrid.appendChild(button);
   });
@@ -391,67 +233,186 @@ function renderQuestion() {
     note.textContent = 'Host monitor mode — answer selection is disabled.';
     answersGrid.appendChild(note);
   }
-
-  state.countdown = 12;
-  timerFill.style.width = '100%';
-  clearInterval(state.timerId);
-  state.timerId = setInterval(() => {
-    state.countdown -= 1;
-    const percent = Math.max(0, (state.countdown / 12) * 100);
-    timerFill.style.width = `${percent}%`;
-    if (state.countdown <= 0) {
-      clearInterval(state.timerId);
-      lockAnswers();
-      settleAnswer(null);
-    }
-  }, 1000);
 }
 
-function lockAnswers() {
-  answersGrid.querySelectorAll('button').forEach((button) => {
-    button.disabled = true;
+function submitAnswer(answerIndex) {
+  if (!state.pin || !state.playerId) return;
+  const gameRef = ref(db, `games/${state.pin}`);
+  get(gameRef).then((snapshot) => {
+    const game = snapshot.val();
+    if (!game || !game.started) {
+      alert('Quiz is not currently active.');
+      return;
+    }
+    const question = game.quiz.questions[game.currentQuestion];
+    const correct = answerIndex === question.answer;
+    const playerRef = ref(db, `games/${state.pin}/players/${state.playerId}`);
+    update(playerRef, {
+      answered: true,
+      score: correct ? (game.players?.[state.playerId]?.score || 0) + 100 : (game.players?.[state.playerId]?.score || 0),
+      lastAnswer: answerIndex,
+    });
   });
 }
 
-function chooseAnswer(choiceIndex) {
-  lockAnswers();
-  clearInterval(state.timerId);
-  settleAnswer(choiceIndex);
-}
-
-function settleAnswer(choiceIndex) {
-  const question = state.quiz.questions[state.currentQuestion];
-  const isCorrect = choiceIndex === question.answer;
-  const selectedButtons = answersGrid.querySelectorAll('button');
-  selectedButtons.forEach((button) => {
-    const idx = Number(button.dataset.index);
-    if (idx === question.answer) {
-      button.classList.add('correct');
+function listenGame() {
+  if (!state.pin) return;
+  const gameRef = ref(db, `games/${state.pin}`);
+  if (gameListener) gameListener();
+  gameListener = onValue(gameRef, (snapshot) => {
+    const game = snapshot.val();
+    if (!game) {
+      alert('Game has ended or does not exist.');
+      clearSession();
+      showScreen('welcome');
+      return;
     }
-    if (choiceIndex !== null && idx === choiceIndex && idx !== question.answer) {
-      button.classList.add('wrong');
+    state.quiz = game.quiz;
+    state.currentQuestion = game.currentQuestion || 0;
+    state.gameStarted = !!game.started;
+    state.ended = !!game.ended;
+    gamePinDisplay.textContent = state.pin || '----';
+
+    if (state.ended) {
+      showFinalScoreboard(state.players);
+      return;
     }
-  });
 
-  const scoreDelta = isCorrect ? 100 + state.countdown * 10 : 0;
-  const player = state.players.find((p) => p.name === state.myPlayerName) || state.players[0];
-  player.score += scoreDelta;
-  player.answers.push({ question: question.question, correct: isCorrect, chosen: choiceIndex });
-
-  setTimeout(() => {
-    state.currentQuestion += 1;
-    if (state.currentQuestion >= state.quiz.questions.length) {
-      showScoreboard();
-    } else {
+    if (state.gameStarted) {
+      showScreen('game');
       renderQuestion();
+    } else {
+      showScreen('lobby');
     }
-  }, 1100);
+    updateLobbyRoleUI();
+  });
 }
 
-function showScoreboard() {
-  showScreen('scoreboard');
-  const sortedPlayers = [...state.players].sort((a, b) => b.score - a.score);
-  scoreRows.innerHTML = sortedPlayers
+function listenPlayers() {
+  if (!state.pin) return;
+  const playersRef = ref(db, `games/${state.pin}/players`);
+  if (playersListener) playersListener();
+  playersListener = onValue(playersRef, (snapshot) => {
+    const playersObj = snapshot.val() || {};
+    const players = Object.entries(playersObj).map(([id, player]) => ({ id, ...player }));
+    state.players = players;
+    renderPlayers(players);
+    updateLobbyRoleUI();
+  });
+}
+
+function createLobby() {
+  updateQuizFromEditor();
+  if (!state.quiz || !state.quiz.questions.length) {
+    alert('Add at least one question before hosting.');
+    return;
+  }
+  state.pin = createPin();
+  state.role = 'host';
+  state.name = null;
+  state.playerId = null;
+  state.gameStarted = false;
+  state.ended = false;
+  saveSession();
+
+  const gameRef = ref(db, `games/${state.pin}`);
+  set(gameRef, {
+    quiz: state.quiz,
+    currentQuestion: 0,
+    started: false,
+    ended: false,
+    createdAt: Date.now(),
+  }).then(() => {
+    listenGame();
+    listenPlayers();
+    gamePinDisplay.textContent = state.pin;
+    renderPlayers([]);
+    updateLobbyRoleUI();
+    showScreen('lobby');
+  });
+}
+
+function joinGame() {
+  const name = playerNameInput.value.trim();
+  const pin = gamePinInput.value.trim();
+  if (!name || !validatePin(pin)) {
+    alert('Enter a valid name and 4-digit PIN.');
+    return;
+  }
+  const gameRef = ref(db, `games/${pin}`);
+  get(gameRef).then((snapshot) => {
+    if (!snapshot.exists()) {
+      alert('Game PIN not found.');
+      return;
+    }
+    const game = snapshot.val();
+    if (game.started) {
+      alert('Game already started. Wait for the next quiz.');
+      return;
+    }
+    const playersRef = ref(db, `games/${pin}/players`);
+    const newPlayerRef = push(playersRef);
+    state.role = 'player';
+    state.name = name;
+    state.pin = pin;
+    state.playerId = newPlayerRef.key;
+    state.answered = false;
+    saveSession();
+    set(newPlayerRef, {
+      name,
+      score: 0,
+      answered: false,
+    }).then(() => {
+      onDisconnect(newPlayerRef).remove();
+      listenGame();
+      listenPlayers();
+      gamePinDisplay.textContent = pin;
+      updateLobbyRoleUI();
+      showScreen('lobby');
+      alert(`Joined as ${name}. Waiting for the host to begin.`);
+    });
+  });
+}
+
+function startGame() {
+  if (state.role !== 'host') return;
+  if (!state.players.length) {
+    alert('Add at least one player before starting the quiz.');
+    return;
+  }
+  const gameRef = ref(db, `games/${state.pin}`);
+  const gameUpdate = {
+    started: true,
+    ended: false,
+    currentQuestion: 0,
+  };
+  state.players.forEach((player) => {
+    gameUpdate[`players/${player.id}/score`] = 0;
+    gameUpdate[`players/${player.id}/answered`] = false;
+  });
+  update(gameRef, gameUpdate);
+}
+
+function nextQuestion() {
+  if (state.role !== 'host') return;
+  const nextIndex = state.currentQuestion + 1;
+  const gameRef = ref(db, `games/${state.pin}`);
+  const updateData = {};
+  if (nextIndex >= state.quiz.questions.length) {
+    updateData.started = false;
+    updateData.ended = true;
+  } else {
+    updateData.currentQuestion = nextIndex;
+  }
+  state.players.forEach((player) => {
+    updateData[`players/${player.id}/answered`] = false;
+  });
+  update(gameRef, updateData);
+}
+
+function showFinalScoreboard(players) {
+  const sorted = players.slice().sort((a, b) => b.score - a.score);
+  scoreRows.innerHTML = sorted
     .map(
       (player, index) => `
       <tr>
@@ -462,54 +423,59 @@ function showScoreboard() {
     `
     )
     .join('');
+  showScreen('scoreboard');
 }
 
-function resetToWelcome() {
-  state = {
-    quiz: sampleQuiz,
-    players: [],
-    gamePin: '',
-    currentQuestion: 0,
-    countdown: 10,
-    timerId: null,
-    gameStarted: false,
-    myPlayerName: null,
-    role: null,
-  };
-  clearSavedState();
-  clearSessionRole();
-  buildQuizEditor(sampleQuiz);
-  showScreen('welcome');
-}
-
-hostGameBtn.addEventListener('click', () => {
-  state.role = 'host';
-  saveSessionRole('host', null);
-  buildQuizEditor(sampleQuiz);
-  showScreen('editor');
-});
-
-playGameBtn.addEventListener('click', () => {
-  state.role = 'player';
-  saveSessionRole('player', null);
-  loadState();
-  if (state.gamePin && gamePinInput) {
-    gamePinInput.value = state.gamePin;
+function updateLobbyRoleUI() {
+  if (state.role === 'player') {
+    beginGameBtn.disabled = true;
+    beginGameBtn.textContent = 'Waiting for host';
+  } else {
+    beginGameBtn.disabled = false;
+    beginGameBtn.textContent = 'Begin Quiz';
   }
-  renderPlayers();
-  updateLobbyRoleUI();
-  showScreen('join');
-});
+  nextQuestionBtn.style.display = state.role === 'host' && state.gameStarted ? 'block' : 'none';
+}
 
-addQuestionBtn.addEventListener('click', () => {
-  addQuestion();
-});
+function restoreSession() {
+  loadSession();
+  if (!state.pin || !state.role) return;
+  gamePinDisplay.textContent = state.pin;
+  listenGame();
+  listenPlayers();
+  if (state.role === 'player') {
+    showScreen('lobby');
+  }
+}
 
 startHostBtn.addEventListener('click', createLobby);
 joinGameBtn.addEventListener('click', joinGame);
 beginGameBtn.addEventListener('click', startGame);
-playAgainBtn.addEventListener('click', resetToWelcome);
-
+nextQuestionBtn.addEventListener('click', nextQuestion);
+playAgainBtn.addEventListener('click', () => {
+  clearSession();
+  showScreen('welcome');
+});
+hostGameBtn.addEventListener('click', () => {
+  state.role = 'host';
+  state.quiz = {
+    title: 'General knowledge challenge',
+    questions: [
+      { question: 'Which planet is known as the Red Planet?', choices: ['Mars', 'Venus', 'Jupiter', 'Mercury'], answer: 0 },
+      { question: 'What is the capital of Japan?', choices: ['Beijing', 'Seoul', 'Tokyo', 'Bangkok'], answer: 2 },
+      { question: 'What is the main ingredient in guacamole?', choices: ['Potato', 'Avocado', 'Mango', 'Tomato'], answer: 1 },
+      { question: 'How many continents are there?', choices: ['5', '6', '7', '8'], answer: 2 },
+    ],
+  };
+  quizTitleInput.value = state.quiz.title;
+  renderQuestionCards();
+  renderPreview();
+  showScreen('editor');
+});
+playGameBtn.addEventListener('click', () => {
+  state.role = 'player';
+  showScreen('join');
+});
 window.addEventListener('click', (event) => {
   if (event.target.matches('.back-btn')) {
     const target = event.target.dataset.target;
@@ -517,44 +483,16 @@ window.addEventListener('click', (event) => {
   }
   if (event.target.dataset.action === 'remove') {
     const index = Number(event.target.dataset.index);
-    removeQuestion(index);
+    state.quiz.questions.splice(index, 1);
+    renderQuestionCards();
+    renderPreview();
   }
 });
-
 window.addEventListener('input', (event) => {
   if (!event.target.closest('#questionList')) return;
-
   updateQuizFromEditor();
   renderPreview();
-
-  const target = event.target;
-  if (target.dataset.role === 'choice') {
-    const questionIndex = Number(target.dataset.index);
-    const choiceIndex = Number(target.dataset.choice);
-    const matchingSelect = questionList.querySelector(`select[data-index="${questionIndex}"]`);
-    if (matchingSelect) {
-      const option = matchingSelect.querySelector(`option[value="${choiceIndex}"]`);
-      if (option) option.textContent = target.value || `Choice ${choiceIndex + 1}`;
-    }
-  }
 });
-
-window.addEventListener('storage', (event) => {
-  if (event.key !== 'quizBlitzState') return;
-  loadState();
-  restoreSessionRole();
-  if (gamePinInput) gamePinInput.value = state.gamePin || '';
-  if (gamePinDisplay) gamePinDisplay.textContent = state.gamePin || '----';
-  renderPlayers();
-  updateLobbyRoleUI();
-  maybeEnterGameIfStarted();
-});
-
-restoreSessionRole();
-loadState();
-if (gamePinInput) gamePinInput.value = state.gamePin || '';
-if (gamePinDisplay) gamePinDisplay.textContent = state.gamePin || '----';
-renderPlayers();
-updateLobbyRoleUI();
-maybeEnterGameIfStarted();
-buildQuizEditor(state.quiz || sampleQuiz);
+renderQuestionCards();
+renderPreview();
+restoreSession();

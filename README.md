@@ -1,19 +1,34 @@
 # Quiz Blitz
 
-A simple Kahoot-style quiz website built with HTML, CSS, and JavaScript.
+A real-time Kahoot-style quiz game with host monitoring and multi-device play.
 
 ## Features
 
-- Create and edit quiz questions
-- Host a quiz session with a join PIN
-- Play a question-by-question game with a countdown timer
-- Final scoreboard display
+- Host a live quiz from one device
+- Join from multiple devices using a shared game PIN
+- Host monitors all connected players in real time
+- Players answer questions while the host observes scores and progress
+- Final scoreboard updates for everyone
 
 ## Run locally
 
-1. Open `index.html` in your browser.
-2. Or serve the folder with a static file server for best results.
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Start the server:
+   ```bash
+   npm start
+   ```
+3. Open `http://localhost:3000` in your browser.
+
+## How it works
+
+- The host opens the site and creates a quiz.
+- The host starts hosting and receives a 4-digit PIN.
+- Players connect from different devices using the same URL and enter the PIN.
+- The host monitors the lobby, starts the quiz, and watches live score updates.
 
 ## Notes
 
-This app is designed as a lightweight static web project. You can enhance it with backend support or real-time multiplayer later.
+This project uses a Node.js backend with WebSockets to support multi-device gameplay across networked clients.

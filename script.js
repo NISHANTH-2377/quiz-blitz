@@ -73,6 +73,31 @@ function formatPin() {
   return Math.floor(1000 + Math.random() * 9000).toString();
 }
 
+function loadState() {
+  const saved = localStorage.getItem('quizBlitzState');
+  if (!saved) return;
+  try {
+    const parsed = JSON.parse(saved);
+    if (parsed.quiz) state.quiz = parsed.quiz;
+    if (Array.isArray(parsed.players)) state.players = parsed.players;
+    if (typeof parsed.gamePin === 'string') state.gamePin = parsed.gamePin;
+    if (typeof parsed.currentQuestion === 'number') state.currentQuestion = parsed.currentQuestion;
+  } catch (error) {
+    console.warn('Unable to parse saved quiz state', error);
+  }
+}
+
+function saveState() {
+  localStorage.setItem(
+    'quizBlitzState',
+    JSON.stringify({ quiz: state.quiz, players: state.players, gamePin: state.gamePin, currentQuestion: state.currentQuestion })
+  );
+}
+
+function clearSavedState() {
+  localStorage.removeItem('quizBlitzState');
+}
+
 function buildQuizEditor(initialQuiz) {
   const quiz = initialQuiz ? JSON.parse(JSON.stringify(initialQuiz)) : {
     title: 'New Quiz',
@@ -180,6 +205,7 @@ function createLobby() {
   state.players = [];
   gamePinDisplay.textContent = state.gamePin;
   renderPlayers();
+  saveState();
   showScreen('lobby');
 }
 
@@ -197,6 +223,10 @@ function renderPlayers() {
 }
 
 function joinGame() {
+  if (!state.gamePin) {
+    loadState();
+  }
+
   const name = playerNameInput.value.trim();
   const pin = gamePinInput.value.trim();
   if (!name || pin.length !== 4) {
@@ -212,6 +242,7 @@ function joinGame() {
     return;
   }
   state.players.push({ name, score: 0, answers: [] });
+  saveState();
   playerNameInput.value = '';
   renderPlayers();
   alert(`${name} joined the quiz!`);
@@ -329,6 +360,7 @@ function showScoreboard() {
 
 function resetToWelcome() {
   state = { quiz: sampleQuiz, players: [], gamePin: '', currentQuestion: 0, countdown: 10, timerId: null };
+  clearSavedState();
   buildQuizEditor(sampleQuiz);
   showScreen('welcome');
 }
@@ -343,6 +375,7 @@ playGameBtn.addEventListener('click', () => {
   quizTitleInput.value = sampleQuiz.title;
   state.gamePin = formatPin();
   state.players = [];
+  saveState();
   gamePinInput.value = state.gamePin;
   showScreen('join');
 });
@@ -385,4 +418,5 @@ window.addEventListener('input', (event) => {
   }
 });
 
-buildQuizEditor(sampleQuiz);
+loadState();
+buildQuizEditor(state.quiz || sampleQuiz);
